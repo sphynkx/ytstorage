@@ -13,7 +13,7 @@ pip install -r install/requirements.txt
 deactivate
 chmod a+x run.sh
 ```
-Optionally set necessary params (see `config/config.py`). Make sure that `proto/ytstorage.proto` is same as on at `yurtube` installation. Otherwise just run `gen_proto.sh` in same dir.
+Optionally set necessary params (see `config/config.py`). Make sure that `proto/ytstorage.proto` is same as one at `yurtube` installation. Otherwise just run `gen_proto.sh` in same dir.
 
 Finally run:
 ```bash
