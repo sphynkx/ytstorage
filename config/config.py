@@ -1,0 +1,29 @@
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+env_path = Path(__file__).parent.parent / 'install' / '.env'
+load_dotenv(dotenv_path=env_path)
+
+def get_env_bool(key: str, default: bool = False) -> bool:
+    val = os.getenv(key, str(default)).lower()
+    return val in ('true', '1', 'yes', 'on')
+
+# Listen on
+STORAGE_REMOTE_ADDRESS = os.getenv("STORAGE_REMOTE_ADDRESS", "0.0.0.0:50070")
+
+# Auth enable/disable
+STORAGE_REMOTE_TLS = get_env_bool("STORAGE_REMOTE_TLS", False)
+
+# Set same as on yurtube side!! (check)
+STORAGE_REMOTE_TOKEN = os.getenv("STORAGE_REMOTE_TOKEN", "")
+
+STORAGE_GRPC_MAX_MSG_MB = int(os.getenv("STORAGE_GRPC_MAX_MSG_MB", "64"))
+
+# Driver type: "fs" (MVP), "s3", "ceph", etc (TODOs)
+DRIVER_KIND = os.getenv("DRIVER_KIND", "fs")
+
+# Root dir for FS driver. TODO: test with /var/www/yurtube/storage
+APP_STORAGE_FS_ROOT = os.getenv("APP_STORAGE_FS_ROOT", "/var/lib/ytstorage")
+
+VERSION = os.getenv("VERSION", "1.0.0")
