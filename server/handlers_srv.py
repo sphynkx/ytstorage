@@ -51,15 +51,18 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
     # --- RPC Implementations ---
 
     async def Health(self, request, context):
+        # logger.debug("Health check") 
         return ytstorage_pb2.HealthResponse(status="ok", version=config.VERSION)
 
     async def Stat(self, request, context):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
+            logger.info(f"Stat request: {rel_path}")
             stat_obj = await self.driver.stat(rel_path)
             return self._to_stat_response(stat_obj)
         except Exception as e:
+            logger.warning(f"Stat failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
             await errors_ut.abort(context, code, msg)
 
@@ -67,6 +70,7 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
+            # logger.info(f"Exists request: {rel_path}")
             exists = await self.driver.exists(rel_path)
             ftype = ytstorage_pb2.FILETYPE_UNKNOWN
             if exists:
@@ -84,10 +88,12 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
+            logger.info(f"Listdir request: {rel_path}")
             items = await self.driver.listdir(rel_path)
             entries = [self._to_file_entry(x) for x in items]
             return ytstorage_pb2.ListdirResponse(entries=entries, next_page_token="")
         except Exception as e:
+            logger.warning(f"Listdir failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
             await errors_ut.abort(context, code, msg)
 
@@ -95,9 +101,11 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
+            logger.info(f"Mkdirs request: {rel_path}")
             await self.driver.mkdirs(rel_path, exist_ok=request.exist_ok)
             return ytstorage_pb2.MkdirsResponse(ok=True)
         except Exception as e:
+            logger.error(f"Mkdirs failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
             await errors_ut.abort(context, code, msg)
 
@@ -106,9 +114,11 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         try:
             src_path = request.src.rel_path
             dst_path = request.dst.rel_path
+            logger.info(f"Rename request: {src_path} -> {dst_path}")
             await self.driver.rename(src_path, dst_path, overwrite=request.overwrite)
             return ytstorage_pb2.RenameResponse(ok=True)
         except Exception as e:
+            logger.error(f"Rename failed: {e}")
             code, msg = errors_ut.translate_exception(e)
             await errors_ut.abort(context, code, msg)
 
@@ -116,9 +126,11 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
+            logger.info(f"Remove request: {rel_path}")
             await self.driver.remove(rel_path, recursive=request.recursive)
             return ytstorage_pb2.RemoveResponse(ok=True)
         except Exception as e:
+            logger.error(f"Remove failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
             await errors_ut.abort(context, code, msg)
 
@@ -126,10 +138,12 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
+            logger.info(f"Read request: {rel_path}, offset={request.offset}")
             stream = self.driver.read_stream(rel_path, request.offset, request.length)
             async for chunk_bytes in stream:
                 yield ytstorage_pb2.ReadChunk(data=chunk_bytes)
         except Exception as e:
+            logger.warning(f"Read failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
             await errors_ut.abort(context, code, msg)
 

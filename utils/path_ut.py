@@ -22,13 +22,13 @@ def normalize_path(rel_path: str) -> str:
     return clean.lstrip("/")
 
 
-def safe_join(base: str, *paths: str) -> str:
+def safe_join(base: str, rel_path: str) -> str:
     """
     Safe joins root and rel paths, premits Path Traversal
     
     Args:
         base: abs path to storage.
-        paths: rel path parts.
+        rel_path: rel path from client.
         
     Returns:
         abs path.
