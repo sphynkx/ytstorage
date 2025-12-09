@@ -19,3 +19,15 @@ Finally run:
 ```bash
 ./run.sh
 ```
+
+
+## Test
+You may use special util for quick health test:
+```bash
+dnf install grpcurl
+```
+and:
+```bash
+grpcurl -plaintext 127.0.0.1:50070 list
+grpcurl -plaintext 127.0.0.1:50070 describe storage.StorageService
+```

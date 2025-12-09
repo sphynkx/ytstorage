@@ -23,7 +23,12 @@ STORAGE_GRPC_MAX_MSG_MB = int(os.getenv("STORAGE_GRPC_MAX_MSG_MB", "64"))
 # Driver type: "fs" (MVP), "s3", "ceph", etc (TODOs)
 DRIVER_KIND = os.getenv("DRIVER_KIND", "fs")
 
-# Root dir for FS driver. TODO: test with /var/www/yurtube/storage
-APP_STORAGE_FS_ROOT = os.getenv("APP_STORAGE_FS_ROOT", "/var/lib/ytstorage")
+# Root dir for FS driver.
+# Default is /tmp/ytstorage_data but wait for abs path.
+DEFAULT_FS_ROOT = os.path.abspath("/tmp/ytstorage_data")
+# Note: Actual driver uses config/fs_cfg.py, but we keep this variable 
+# here for main server logging or future checks.
+APP_STORAGE_FS_ROOT = os.getenv("APP_STORAGE_FS_ROOT", DEFAULT_FS_ROOT)
+APP_STORAGE_FS_ROOT = os.path.abspath(APP_STORAGE_FS_ROOT)
 
 VERSION = os.getenv("VERSION", "1.0.0")
