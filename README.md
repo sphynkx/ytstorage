@@ -21,6 +21,16 @@ Finally run:
 ```
 
 
+## Run as systemd service
+```bash
+cp install/ytstorage.service /etc/systemd/system
+systemctl daemon-reload
+systemctl enable ytstorage
+systemctl start ytstorage
+systemctl status ytstorage
+```
+
+
 ## Test
 You may use special util for quick health test:
 ```bash
