@@ -51,26 +51,29 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
     # --- RPC Implementations ---
 
     async def Health(self, request, context):
-        # logger.debug("Health check") 
         return ytstorage_pb2.HealthResponse(status="ok", version=config.VERSION)
 
     async def Stat(self, request, context):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
-            logger.info(f"Stat request: {rel_path}")
+            # Debug/Info level is enough for reads
+            logger.debug(f"Stat request: {rel_path}")
             stat_obj = await self.driver.stat(rel_path)
             return self._to_stat_response(stat_obj)
         except Exception as e:
-            logger.warning(f"Stat failed for {rel_path}: {e}")
+            # Just translate and return error to client. 
+            # errors_ut will log CRITICAL only. 
+            # We can log warning here if needed.
             code, msg = errors_ut.translate_exception(e)
+            if code != grpc.StatusCode.NOT_FOUND:
+                logger.warning(f"Stat warning: {msg}")
             await errors_ut.abort(context, code, msg)
 
     async def Exists(self, request, context):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
-            # logger.info(f"Exists request: {rel_path}")
             exists = await self.driver.exists(rel_path)
             ftype = ytstorage_pb2.FILETYPE_UNKNOWN
             if exists:
@@ -88,13 +91,14 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
-            logger.info(f"Listdir request: {rel_path}")
+            logger.debug(f"Listdir request: {rel_path}")
             items = await self.driver.listdir(rel_path)
             entries = [self._to_file_entry(x) for x in items]
             return ytstorage_pb2.ListdirResponse(entries=entries, next_page_token="")
         except Exception as e:
-            logger.warning(f"Listdir failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
+            if code != grpc.StatusCode.NOT_FOUND:
+                logger.warning(f"Listdir warning: {msg}")
             await errors_ut.abort(context, code, msg)
 
     async def Mkdirs(self, request, context):
@@ -105,8 +109,8 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
             await self.driver.mkdirs(rel_path, exist_ok=request.exist_ok)
             return ytstorage_pb2.MkdirsResponse(ok=True)
         except Exception as e:
-            logger.error(f"Mkdirs failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
+            logger.warning(f"Mkdirs failed: {msg}")
             await errors_ut.abort(context, code, msg)
 
     async def Rename(self, request, context):
@@ -118,33 +122,36 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
             await self.driver.rename(src_path, dst_path, overwrite=request.overwrite)
             return ytstorage_pb2.RenameResponse(ok=True)
         except Exception as e:
-            logger.error(f"Rename failed: {e}")
             code, msg = errors_ut.translate_exception(e)
+            logger.warning(f"Rename failed: {msg}")
             await errors_ut.abort(context, code, msg)
 
     async def Remove(self, request, context):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
-            logger.info(f"Remove request: {rel_path}")
+            logger.info(f"Remove request: {rel_path} (recursive={request.recursive})")
             await self.driver.remove(rel_path, recursive=request.recursive)
             return ytstorage_pb2.RemoveResponse(ok=True)
         except Exception as e:
-            logger.error(f"Remove failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
+            # Log warnings for logic errors (e.g. dir not empty), but not traceback
+            logger.warning(f"Remove failed: {msg}")
             await errors_ut.abort(context, code, msg)
 
     async def Read(self, request, context) -> AsyncIterator[ytstorage_pb2.ReadChunk]:
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
-            logger.info(f"Read request: {rel_path}, offset={request.offset}")
+            logger.debug(f"Read request: {rel_path}, offset={request.offset}")
             stream = self.driver.read_stream(rel_path, request.offset, request.length)
             async for chunk_bytes in stream:
                 yield ytstorage_pb2.ReadChunk(data=chunk_bytes)
         except Exception as e:
-            logger.warning(f"Read failed for {rel_path}: {e}")
             code, msg = errors_ut.translate_exception(e)
+            # Don't log read errors too loudly if it's just 404
+            if code != grpc.StatusCode.NOT_FOUND:
+                logger.warning(f"Read failed: {msg}")
             await errors_ut.abort(context, code, msg)
 
     async def Write(self, request_iterator, context) -> AsyncIterator[ytstorage_pb2.WriteAck]:
@@ -189,7 +196,9 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
             yield ytstorage_pb2.WriteAck(ok=True, bytes_written=state.bytes_count)
 
         except Exception as e:
-            logger.error(f"Write failed: {e}")
+            code, msg = errors_ut.translate_exception(e)
+            logger.warning(f"Write failed: {msg}")
+            # WriteAck contains logic error, no need to abort stream abruptly if we can send Ack
             yield ytstorage_pb2.WriteAck(ok=False, error=str(e), bytes_written=state.bytes_count)
 
     # --- Job stubs ---
