@@ -1,9 +1,8 @@
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
-env_path = Path(__file__).parent.parent / 'install' / '.env'
-load_dotenv(dotenv_path=env_path)
+# Load .env automatically (looks in current dir and parents)
+load_dotenv()
 
 def get_env_bool(key: str, default: bool = False) -> bool:
     val = os.getenv(key, str(default)).lower()

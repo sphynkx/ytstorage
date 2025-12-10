@@ -2,8 +2,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-env_path = Path(__file__).parent.parent / 'install' / '.env'
-load_dotenv(dotenv_path=env_path)
+# Load .env automatically
+load_dotenv()
 
 # Get the raw value from environment
 _fs_root_env = os.getenv("APP_STORAGE_FS_ROOT")
