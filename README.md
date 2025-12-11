@@ -1,4 +1,4 @@
-This is storage service for [YurTube app](https://github.com/sphynkx/yurtube). Based on gRPC/protobuf. Service is in MVP stage. Only local FS support partly implemented.
+This is storage service for [YurTube app](https://github.com/sphynkx/yurtube). Based on gRPC/protobuf. Service supports base mode (common local FS storage) and S3 based (support for S3, Ceph, Google Cloud, MinIO etc), with local caching.
 
 
 ## Install and config
@@ -44,7 +44,7 @@ grpcurl -plaintext 127.0.0.1:50070 describe storage.StorageService
 
 
 ## S3 configuration
-Service may use S3 based storages via `aiobotocore` module (support for S3, Ceph, Google Cloud, MinIO etc). Ir requires configured and available local or remote storage. Below is a quick simple configuration for local minio based storage.
+Service may use S3 based storages via `aiobotocore` module (support for S3, Ceph, Google Cloud, MinIO etc). It requires configured and available local or remote storage. Below is a quick simple configuration for local minio based storage.
 
 
 ### MinIO
@@ -66,7 +66,7 @@ Add to `.env`, modify your creds:
 DRIVER_KIND=s3
 S3_ENDPOINT_URL=http://127.0.0.1:9000
 S3_ACCESS_KEY_ID=admin
-S3_SECRET_ACCESS_KEY=password123
+S3_SECRET_ACCESS_KEY=SECRET
 S3_BUCKET_NAME=yurtube-bucket
 ```
 
@@ -84,7 +84,7 @@ This is command line configuration. You need choose:
 * provider: __Minio__ (mostly it will be at p.17)
 env_auth: __false__
 access_key_id: __admin__
-secret_access_key: __password123__ (set same as in ytminio.service and ytstorage config!!)
+secret_access_key: __SECRET__ (set same as in ytminio.service and ytstorage config!!)
 region: __us-east-1__ (set it manually, dont sure on defaults!!).
 endpoint: __http://127.0.0.1:9000__
 

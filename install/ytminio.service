@@ -11,7 +11,7 @@ Group=root
 ProtectProc=invisible
 
 Environment="MINIO_ROOT_USER=admin"
-Environment="MINIO_ROOT_PASSWORD=pasword123"
+Environment="MINIO_ROOT_PASSWORD=SECRET"
 
 ExecStart=/usr/local/bin/minio server /var/lib/minio_data --console-address ":9001"
 
