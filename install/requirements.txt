@@ -5,3 +5,4 @@ python-dotenv>=1.0.0
 protobuf>=4.21.0
 aiofiles>=23.0.0
 aiobotocore>=2.5.0
+redis>=5.0.0

@@ -35,67 +35,72 @@ class StorageServiceStub(object):
             channel: A grpc.Channel.
         """
         self.Health = channel.unary_unary(
-                '/storage.StorageService/Health',
+                '/ytstorage.StorageService/Health',
                 request_serializer=ytstorage__pb2.HealthRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.HealthResponse.FromString,
                 _registered_method=True)
         self.Stat = channel.unary_unary(
-                '/storage.StorageService/Stat',
+                '/ytstorage.StorageService/Stat',
                 request_serializer=ytstorage__pb2.StatRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.StatResponse.FromString,
                 _registered_method=True)
         self.Exists = channel.unary_unary(
-                '/storage.StorageService/Exists',
+                '/ytstorage.StorageService/Exists',
                 request_serializer=ytstorage__pb2.ExistsRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.ExistsResponse.FromString,
                 _registered_method=True)
         self.Mkdirs = channel.unary_unary(
-                '/storage.StorageService/Mkdirs',
+                '/ytstorage.StorageService/Mkdirs',
                 request_serializer=ytstorage__pb2.MkdirsRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.MkdirsResponse.FromString,
                 _registered_method=True)
         self.Listdir = channel.unary_unary(
-                '/storage.StorageService/Listdir',
+                '/ytstorage.StorageService/Listdir',
                 request_serializer=ytstorage__pb2.ListdirRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.ListdirResponse.FromString,
                 _registered_method=True)
         self.Rename = channel.unary_unary(
-                '/storage.StorageService/Rename',
+                '/ytstorage.StorageService/Rename',
                 request_serializer=ytstorage__pb2.RenameRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.RenameResponse.FromString,
                 _registered_method=True)
         self.Remove = channel.unary_unary(
-                '/storage.StorageService/Remove',
+                '/ytstorage.StorageService/Remove',
                 request_serializer=ytstorage__pb2.RemoveRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.RemoveResponse.FromString,
                 _registered_method=True)
         self.Read = channel.unary_stream(
-                '/storage.StorageService/Read',
+                '/ytstorage.StorageService/Read',
                 request_serializer=ytstorage__pb2.ReadRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.ReadChunk.FromString,
                 _registered_method=True)
         self.Write = channel.stream_stream(
-                '/storage.StorageService/Write',
+                '/ytstorage.StorageService/Write',
                 request_serializer=ytstorage__pb2.WriteEnvelope.SerializeToString,
                 response_deserializer=ytstorage__pb2.WriteAck.FromString,
                 _registered_method=True)
+        self.GeneratePresignedUrl = channel.unary_unary(
+                '/ytstorage.StorageService/GeneratePresignedUrl',
+                request_serializer=ytstorage__pb2.GenerateUrlRequest.SerializeToString,
+                response_deserializer=ytstorage__pb2.GenerateUrlResponse.FromString,
+                _registered_method=True)
         self.EnqueuePut = channel.unary_unary(
-                '/storage.StorageService/EnqueuePut',
+                '/ytstorage.StorageService/EnqueuePut',
                 request_serializer=ytstorage__pb2.EnqueuePutRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.JobRef.FromString,
                 _registered_method=True)
         self.EnqueueGet = channel.unary_unary(
-                '/storage.StorageService/EnqueueGet',
+                '/ytstorage.StorageService/EnqueueGet',
                 request_serializer=ytstorage__pb2.EnqueueGetRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.JobRef.FromString,
                 _registered_method=True)
         self.JobStatus = channel.unary_unary(
-                '/storage.StorageService/JobStatus',
+                '/ytstorage.StorageService/JobStatus',
                 request_serializer=ytstorage__pb2.JobStatusRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.JobStatusResponse.FromString,
                 _registered_method=True)
         self.CancelJob = channel.unary_unary(
-                '/storage.StorageService/CancelJob',
+                '/ytstorage.StorageService/CancelJob',
                 request_serializer=ytstorage__pb2.CancelJobRequest.SerializeToString,
                 response_deserializer=ytstorage__pb2.CancelJobResponse.FromString,
                 _registered_method=True)
@@ -155,6 +160,13 @@ class StorageServiceServicer(object):
 
     def Write(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GeneratePresignedUrl(self, request, context):
+        """Direct Access:
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -232,6 +244,11 @@ def add_StorageServiceServicer_to_server(servicer, server):
                     request_deserializer=ytstorage__pb2.WriteEnvelope.FromString,
                     response_serializer=ytstorage__pb2.WriteAck.SerializeToString,
             ),
+            'GeneratePresignedUrl': grpc.unary_unary_rpc_method_handler(
+                    servicer.GeneratePresignedUrl,
+                    request_deserializer=ytstorage__pb2.GenerateUrlRequest.FromString,
+                    response_serializer=ytstorage__pb2.GenerateUrlResponse.SerializeToString,
+            ),
             'EnqueuePut': grpc.unary_unary_rpc_method_handler(
                     servicer.EnqueuePut,
                     request_deserializer=ytstorage__pb2.EnqueuePutRequest.FromString,
@@ -254,9 +271,9 @@ def add_StorageServiceServicer_to_server(servicer, server):
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'storage.StorageService', rpc_method_handlers)
+            'ytstorage.StorageService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('storage.StorageService', rpc_method_handlers)
+    server.add_registered_method_handlers('ytstorage.StorageService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
@@ -277,7 +294,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/Health',
+            '/ytstorage.StorageService/Health',
             ytstorage__pb2.HealthRequest.SerializeToString,
             ytstorage__pb2.HealthResponse.FromString,
             options,
@@ -304,7 +321,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/Stat',
+            '/ytstorage.StorageService/Stat',
             ytstorage__pb2.StatRequest.SerializeToString,
             ytstorage__pb2.StatResponse.FromString,
             options,
@@ -331,7 +348,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/Exists',
+            '/ytstorage.StorageService/Exists',
             ytstorage__pb2.ExistsRequest.SerializeToString,
             ytstorage__pb2.ExistsResponse.FromString,
             options,
@@ -358,7 +375,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/Mkdirs',
+            '/ytstorage.StorageService/Mkdirs',
             ytstorage__pb2.MkdirsRequest.SerializeToString,
             ytstorage__pb2.MkdirsResponse.FromString,
             options,
@@ -385,7 +402,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/Listdir',
+            '/ytstorage.StorageService/Listdir',
             ytstorage__pb2.ListdirRequest.SerializeToString,
             ytstorage__pb2.ListdirResponse.FromString,
             options,
@@ -412,7 +429,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/Rename',
+            '/ytstorage.StorageService/Rename',
             ytstorage__pb2.RenameRequest.SerializeToString,
             ytstorage__pb2.RenameResponse.FromString,
             options,
@@ -439,7 +456,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/Remove',
+            '/ytstorage.StorageService/Remove',
             ytstorage__pb2.RemoveRequest.SerializeToString,
             ytstorage__pb2.RemoveResponse.FromString,
             options,
@@ -466,7 +483,7 @@ class StorageService(object):
         return grpc.experimental.unary_stream(
             request,
             target,
-            '/storage.StorageService/Read',
+            '/ytstorage.StorageService/Read',
             ytstorage__pb2.ReadRequest.SerializeToString,
             ytstorage__pb2.ReadChunk.FromString,
             options,
@@ -493,9 +510,36 @@ class StorageService(object):
         return grpc.experimental.stream_stream(
             request_iterator,
             target,
-            '/storage.StorageService/Write',
+            '/ytstorage.StorageService/Write',
             ytstorage__pb2.WriteEnvelope.SerializeToString,
             ytstorage__pb2.WriteAck.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GeneratePresignedUrl(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/ytstorage.StorageService/GeneratePresignedUrl',
+            ytstorage__pb2.GenerateUrlRequest.SerializeToString,
+            ytstorage__pb2.GenerateUrlResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -520,7 +564,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/EnqueuePut',
+            '/ytstorage.StorageService/EnqueuePut',
             ytstorage__pb2.EnqueuePutRequest.SerializeToString,
             ytstorage__pb2.JobRef.FromString,
             options,
@@ -547,7 +591,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/EnqueueGet',
+            '/ytstorage.StorageService/EnqueueGet',
             ytstorage__pb2.EnqueueGetRequest.SerializeToString,
             ytstorage__pb2.JobRef.FromString,
             options,
@@ -574,7 +618,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/JobStatus',
+            '/ytstorage.StorageService/JobStatus',
             ytstorage__pb2.JobStatusRequest.SerializeToString,
             ytstorage__pb2.JobStatusResponse.FromString,
             options,
@@ -601,7 +645,7 @@ class StorageService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/storage.StorageService/CancelJob',
+            '/ytstorage.StorageService/CancelJob',
             ytstorage__pb2.CancelJobRequest.SerializeToString,
             ytstorage__pb2.CancelJobResponse.FromString,
             options,

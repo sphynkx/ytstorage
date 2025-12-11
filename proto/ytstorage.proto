@@ -1,9 +1,7 @@
 syntax = "proto3";
 
-package storage;
+package ytstorage;
 
-option go_package = "storagepb";
-option java_package = "com.example.storagepb";
 
 // Types
 
@@ -135,6 +133,25 @@ message HealthResponse {
   string version = 2;
 }
 
+// --- NEW: URL Generation ---
+
+enum UrlMethod {
+    URL_METHOD_GET = 0;  // For downloading
+    URL_METHOD_PUT = 1;  // For uploading
+}
+
+message GenerateUrlRequest {
+    Path path = 1;
+    UrlMethod method = 2;
+    int32 expiration_seconds = 3; // e.g. 3600
+}
+
+message GenerateUrlResponse {
+    bool supported = 1;     // true if driver supports direct links
+    string url = 2;         // full http/https url
+    int64 expires_at_ms = 3;
+}
+
 // Jobs / queues for large transfers
 message EnqueuePutRequest {
   Path path = 1;
@@ -191,6 +208,9 @@ service StorageService {
   // Streaming:
   rpc Read(ReadRequest) returns (stream ReadChunk);
   rpc Write(stream WriteEnvelope) returns (stream WriteAck);
+
+  // Direct Access:
+  rpc GeneratePresignedUrl(GenerateUrlRequest) returns (GenerateUrlResponse);
 
   // Jobs / queues:
   rpc EnqueuePut(EnqueuePutRequest) returns (JobRef);
