@@ -2,6 +2,8 @@
 Description=YtStorage gRPC Service
 After=network.target network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=10
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -15,8 +17,6 @@ ExecStart=/opt/ytstorage/.venv/bin/python main.py
 # --- Critical Service ---
 Restart=always
 RestartSec=3
-StartLimitIntervalSec=10
-StartLimitBurst=5
 
 StandardOutput=journal
 StandardError=journal
