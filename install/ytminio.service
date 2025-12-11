@@ -1,0 +1,24 @@
+[Unit]
+Description=MinIO for YTStorage service
+Documentation=https://docs.min.io
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+WorkingDirectory=/usr/local/bin
+User=root
+Group=root
+ProtectProc=invisible
+
+Environment="MINIO_ROOT_USER=admin"
+Environment="MINIO_ROOT_PASSWORD=pasword123"
+
+ExecStart=/usr/local/bin/minio server /var/lib/minio_data --console-address ":9001"
+
+LimitNOFILE=65536
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
