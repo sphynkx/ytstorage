@@ -56,7 +56,7 @@ mkdir -p /var/lib/minio_data
 cd opt/ytstorage
 cp install/ytminio.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable -- now ytminio
+systemctl enable --now ytminio
 ```
 
 
