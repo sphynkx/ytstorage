@@ -1,5 +1,4 @@
 import asyncio
-import sys
 
 from server.server_srv import serve
 
