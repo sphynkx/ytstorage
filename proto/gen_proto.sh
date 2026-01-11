@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Generate stubs from storage.proto
-# Make sure that ytstorage is identical to one from ytstorage service!!
+# Make sure that ytstorage.proto is identical to one from yurtube service!!
 
 cd "$(dirname "$0")"
 
