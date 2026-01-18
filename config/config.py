@@ -9,7 +9,7 @@ def get_env_bool(key: str, default: bool = False) -> bool:
     return val in ('true', '1', 'yes', 'on')
 
 # Listen on
-STORAGE_REMOTE_ADDRESS = os.getenv("STORAGE_REMOTE_ADDRESS", "0.0.0.0:50070")
+STORAGE_REMOTE_ADDRESS = os.getenv("STORAGE_REMOTE_ADDRESS", "0.0.0.0:9092")
 
 # Auth enable/disable
 STORAGE_REMOTE_TLS = get_env_bool("STORAGE_REMOTE_TLS", False)
