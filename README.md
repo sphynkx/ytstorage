@@ -38,8 +38,8 @@ dnf install grpcurl
 ```
 and:
 ```bash
-grpcurl -plaintext 127.0.0.1:50070 list
-grpcurl -plaintext 127.0.0.1:50070 describe ytstorage.StorageService
+grpcurl -plaintext 127.0.0.1:9092 list
+grpcurl -plaintext 127.0.0.1:9092 describe ytstorage.StorageService
 ```
 
 
