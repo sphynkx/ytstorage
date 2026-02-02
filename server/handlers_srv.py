@@ -1,5 +1,6 @@
 import time
 import logging
+import os
 import grpc
 from typing import AsyncIterator
 
@@ -15,6 +16,45 @@ except ImportError:
     ExecuteBatchError = None
 
 logger = logging_ut.get_logger("handlers_srv")
+
+
+def _cfg_int(name: str, default: int) -> int:
+    v = os.getenv(name)
+    if v is None or v == "":
+        return default
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
+# Hard cap of outgoing ReadChunk size.
+# Default: 1 MiB. You can increase to 4 MiB if needed.
+READ_CHUNK_BYTES = max(64 * 1024, _cfg_int("STORAGE_READ_CHUNK_BYTES", 1024 * 1024))
+
+
+async def _chunk_bytes_iter(stream: AsyncIterator[bytes], *, max_chunk: int) -> AsyncIterator[bytes]:
+    """
+    Normalize driver.read_stream() output into fixed-size chunks <= max_chunk.
+
+    This protects gRPC transport from huge ReadChunk messages and reduces memory spikes.
+    """
+    buf = bytearray()
+    async for part in stream:
+        if not part:
+            continue
+        if not isinstance(part, (bytes, bytearray)):
+            part = bytes(part)
+        buf.extend(part)
+
+        while len(buf) >= max_chunk:
+            out = bytes(buf[:max_chunk])
+            del buf[:max_chunk]
+            yield out
+
+    if buf:
+        yield bytes(buf)
+
 
 class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
     """
@@ -44,7 +84,7 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
             updated_at_ms=int(s.updated_at * 1000),
             etag=s.etag or ""
         )
-    
+
     def _to_file_entry(self, s: FileStat) -> ytstorage_pb2.FileEntry:
         return ytstorage_pb2.FileEntry(
             name=s.name,
@@ -64,7 +104,7 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
-            
+
             # 1. Try Cache
             cached_stat = await cache_manager.get_stat(rel_path)
             if cached_stat:
@@ -74,10 +114,10 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
             # 2. Miss -> Driver
             logger.debug(f"Stat request (Miss): {rel_path}")
             stat_obj = await self.driver.stat(rel_path)
-            
+
             # 3. Save to Cache
             await cache_manager.set_stat(rel_path, stat_obj)
-            
+
             return self._to_stat_response(stat_obj)
         except Exception as e:
             code, msg = errors_ut.translate_exception(e)
@@ -89,7 +129,7 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         await self._check_auth(context)
         try:
             rel_path = request.path.rel_path
-            
+
             # Optimization: Check cache first via Stat cache
             cached_stat = await cache_manager.get_stat(rel_path)
             if cached_stat:
@@ -103,7 +143,7 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
                     stat_obj = await self.driver.stat(rel_path)
                     ftype = self._map_file_type(stat_obj.is_dir)
                     await cache_manager.set_stat(rel_path, stat_obj)
-                except:
+                except Exception:
                     pass
             return ytstorage_pb2.ExistsResponse(exists=exists, file_type=ftype)
         except Exception as e:
@@ -142,12 +182,12 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
             src_path = request.src.rel_path
             dst_path = request.dst.rel_path
             logger.info(f"Rename request: {src_path} -> {dst_path}")
-            
+
             await self.driver.rename(src_path, dst_path, overwrite=request.overwrite)
-            
+
             await cache_manager.invalidate(src_path)
             await cache_manager.invalidate(dst_path)
-            
+
             return ytstorage_pb2.RenameResponse(ok=True)
         except Exception as e:
             code, msg = errors_ut.translate_exception(e)
@@ -159,10 +199,10 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         try:
             rel_path = request.path.rel_path
             logger.info(f"Remove request: {rel_path} (recursive={request.recursive})")
-            
+
             await self.driver.remove(rel_path, recursive=request.recursive)
             await cache_manager.invalidate(rel_path)
-            
+
             return ytstorage_pb2.RemoveResponse(ok=True)
         except Exception as e:
             code, msg = errors_ut.translate_exception(e)
@@ -171,22 +211,36 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
 
     async def Read(self, request, context) -> AsyncIterator[ytstorage_pb2.ReadChunk]:
         await self._check_auth(context)
+        rel_path = "unknown"
         try:
             rel_path = request.path.rel_path
-            
-            # 1. Try Cache for small files (only if reading from start)
-            if request.offset == 0:
+            offset = int(request.offset or 0)
+            length = int(request.length if request.length is not None else -1)
+
+            logger.debug(f"Read request: {rel_path} offset={offset} length={length} chunk_cap={READ_CHUNK_BYTES}")
+
+            # 1) Cache fast-path (small file, from start)
+            if offset == 0:
                 cached_data = await cache_manager.get_file_data(rel_path)
                 if cached_data:
                     logger.debug(f"Read Cache HIT: {rel_path}")
                     data_to_send = cached_data
-                    if request.length > 0:
-                        data_to_send = cached_data[:request.length]
-                    
-                    yield ytstorage_pb2.ReadChunk(data=data_to_send)
+                    if length > 0:
+                        data_to_send = cached_data[:length]
+
+                    # Even cached response: chunk it to avoid one giant message.
+                    i = 0
+                    n = len(data_to_send)
+                    while i < n:
+                        if context.done():
+                            logger.debug(f"Read cancelled by client (cache hit): {rel_path}")
+                            return
+                        j = min(i + READ_CHUNK_BYTES, n)
+                        yield ytstorage_pb2.ReadChunk(data=data_to_send[i:j])
+                        i = j
                     return
 
-            # 2. Miss -> Prepare logic
+            # 2) Prepare stat (for deciding whether to cache body)
             stat_obj = None
             cached_stat = await cache_manager.get_stat(rel_path)
             if cached_stat:
@@ -195,70 +249,87 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
                 try:
                     stat_obj = await self.driver.stat(rel_path)
                     await cache_manager.set_stat(rel_path, stat_obj)
-                except:
-                    pass 
+                except Exception:
+                    pass
 
-            # 3. Decide: Cache body or Direct stream
+            # 3) Decide: cache body or stream
             should_cache_body = False
-            if stat_obj and stat_obj.size <= redis_cfg.CACHE_MAX_FILE_SIZE and request.offset == 0:
+            if stat_obj and stat_obj.size <= redis_cfg.CACHE_MAX_FILE_SIZE and offset == 0:
                 should_cache_body = True
-                
+
             if should_cache_body:
                 logger.debug(f"Read MISS (Small file) -> Caching: {rel_path}")
                 full_data = bytearray()
-                
-                stream = self.driver.read_stream(rel_path, 0, 0)
-                async for chunk in stream:
+
+                stream0 = self.driver.read_stream(rel_path, 0, 0)
+                async for chunk in _chunk_bytes_iter(stream0, max_chunk=READ_CHUNK_BYTES):
                     if context.done():
-                        logger.debug("Read cancelled by client (cache fill)")
+                        logger.debug(f"Read cancelled by client (cache fill): {rel_path}")
                         return
                     full_data.extend(chunk)
-                
+
                 await cache_manager.set_file_data(rel_path, bytes(full_data))
-                
+
                 final_data = full_data
-                if request.length > 0:
-                    final_data = full_data[:request.length]
-                yield ytstorage_pb2.ReadChunk(data=bytes(final_data))
-                
-            else:
-                # Direct streaming (Large file or seek)
-                logger.debug(f"Read Direct: {rel_path}, offset={request.offset}")
-                stream = self.driver.read_stream(rel_path, request.offset, request.length)
-                
-                try:
-                    async for chunk_bytes in stream:
-                        # Pre-check context status
-                        if context.done():
-                            logger.debug(f"Client disconnected early: {rel_path}")
-                            break
-                        yield ytstorage_pb2.ReadChunk(data=chunk_bytes)
-                except Exception as e:
-                    # Filter out gRPC internal errors related to disconnection
-                    err_str = str(e)
-                    is_exec_batch = ExecuteBatchError and isinstance(e, ExecuteBatchError)
-                    
-                    if is_exec_batch or "ExecuteBatchError" in err_str:
-                        logger.debug(f"Client disconnected during stream (ExecuteBatchError): {rel_path}")
-                    elif "Stream removed" in err_str:
-                         logger.debug(f"Client disconnected during stream (Stream removed): {rel_path}")
-                    else:
-                        # Real IO error
-                        logger.error(f"Stream error for {rel_path}: {e}")
-                        raise e
+                if length > 0:
+                    final_data = full_data[:length]
+
+                # Chunked response
+                i = 0
+                n = len(final_data)
+                while i < n:
+                    if context.done():
+                        logger.debug(f"Read cancelled by client (cache respond): {rel_path}")
+                        return
+                    j = min(i + READ_CHUNK_BYTES, n)
+                    yield ytstorage_pb2.ReadChunk(data=bytes(final_data[i:j]))
+                    i = j
+                return
+
+            # 4) Direct streaming (Large file or seek)
+            logger.debug(f"Read Direct: {rel_path}, offset={offset}, length={length}")
+            stream = self.driver.read_stream(rel_path, offset, length)
+
+            sent = 0
+            try:
+                async for chunk_bytes in _chunk_bytes_iter(stream, max_chunk=READ_CHUNK_BYTES):
+                    if context.done():
+                        logger.debug(f"Client disconnected early: {rel_path} sent={sent}")
+                        break
+                    yield ytstorage_pb2.ReadChunk(data=chunk_bytes)
+                    sent += len(chunk_bytes)
+                    # very sparse debug for long streams
+                    if sent and (sent % (256 * 1024 * 1024) == 0):
+                        logger.info(f"Read progress: {rel_path} sent={sent} offset={offset}")
+            except Exception as e:
+                err_str = str(e)
+                is_exec_batch = ExecuteBatchError and isinstance(e, ExecuteBatchError)
+
+                if context.done():
+                    return
+
+                if is_exec_batch or "ExecuteBatchError" in err_str:
+                    logger.debug(f"Client disconnected during stream (ExecuteBatchError): {rel_path}")
+                    return
+                if "Stream removed" in err_str:
+                    logger.debug(f"Client disconnected during stream (Stream removed): {rel_path}")
+                    return
+
+                logger.exception(f"Read stream error: rel={rel_path} offset={offset} length={length} sent={sent}")
+                raise
 
         except Exception as e:
             if context.done():
                 return
-            
+
             code, msg = errors_ut.translate_exception(e)
             if code != grpc.StatusCode.NOT_FOUND:
-                logger.warning(f"Read failed: {msg}")
+                logger.warning(f"Read failed: rel={rel_path} msg={msg}")
             await errors_ut.abort(context, code, msg)
 
     async def Write(self, request_iterator, context) -> AsyncIterator[ytstorage_pb2.WriteAck]:
         await self._check_auth(context)
-        
+
         class StreamState:
             bytes_count = 0
 
@@ -273,7 +344,7 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
                     data_len = len(envelope.data.data)
                     state.bytes_count += data_len
                     yield envelope.data.data
-        
+
         rel_path = "unknown"
         try:
             iterator = request_iterator.__aiter__()
@@ -284,7 +355,7 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
 
             if first_msg.WhichOneof("kind") != "header":
                 await errors_ut.abort(context, grpc.StatusCode.INVALID_ARGUMENT, "First message must be WriteHeader")
-            
+
             header = first_msg.header
             rel_path = header.path.rel_path
             logger.info(f"Start Write: {rel_path}, ovr={header.overwrite}, app={header.append}")
@@ -311,28 +382,27 @@ class StorageServiceServicer(ytstorage_pb2_grpc.StorageServiceServicer):
         try:
             rel_path = request.path.rel_path
             method_str = "PUT" if request.method == ytstorage_pb2.URL_METHOD_PUT else "GET"
-            
+
             logger.debug(f"Url gen request: {rel_path} ({method_str})")
-            
+
             url = await self.driver.generate_presigned_url(
-                rel_path=rel_path, 
-                method=method_str, 
+                rel_path=rel_path,
+                method=method_str,
                 expiration=request.expiration_seconds
             )
-            
+
             supported = (url is not None)
             expires_at = int((time.time() + request.expiration_seconds) * 1000) if supported else 0
-            
+
             return ytstorage_pb2.GenerateUrlResponse(
                 supported=supported,
                 url=url or "",
                 expires_at_ms=expires_at
             )
         except Exception as e:
-             code, msg = errors_ut.translate_exception(e)
-             logger.warning(f"GenerateUrl failed: {msg}")
-             await errors_ut.abort(context, code, msg)
-
+            code, msg = errors_ut.translate_exception(e)
+            logger.warning(f"GenerateUrl failed: {msg}")
+            await errors_ut.abort(context, code, msg)
 
     # --- Job stubs ---
     async def EnqueuePut(self, request, context):
