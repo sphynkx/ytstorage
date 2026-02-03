@@ -74,7 +74,7 @@ S3_BUCKET_NAME=yurtube-bucket
 ### Rclone setup
 This is util for comfortable manipulation of S3 storage and migration. Install it and run config:
 ```bash
-dnf install rclone
+dnf install rclone fuse fuse3
 rclone config
 ```
 This is command line configuration. You need choose:
@@ -103,6 +103,14 @@ For manual manipulations you may create mount dir and mount storage:
 rclone mkdir yt_minio:yurtube-bucket
 mkdir -p /mnt/minio_mount
 rclone mount yt_minio:yurtube-bucket /mnt/minio_mount --daemon
+```
+
+Also you may configure bucket mount as systemd service:
+```bash
+cp opt/ytstorage/install/ytmnt.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now ytmnt
+
 ```
 
 Troubleshootings:

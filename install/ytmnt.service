@@ -1,0 +1,14 @@
+[Unit]
+Description=Rclone mount for MinIO bucket
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/rclone mount yt_minio:yurtube-bucket /mnt/minio_mount \
+  --allow-other --daemon-timeout=10m
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
